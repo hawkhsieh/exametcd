@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -101,16 +102,108 @@ func test_LatencyOfPresistentConnection(testAmount int, keyURL *string) int {
 
 }
 
+// -------------------------
+
+type TestingJob struct {
+	Url          string
+	ConnAmount   int
+	PeriodReport []int
+	SessionWg    sync.WaitGroup
+	RespWg       sync.WaitGroup
+}
+
+func (t *TestingJob) MakeSession() {
+	for {
+		resp, err := http.Get(t.Url + "?wait=true")
+		if err != nil {
+			//		log.Println(err)
+			time.Sleep(time.Second * 1)
+			continue
+		}
+		t.SessionWg.Done()
+
+		_, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Println(err)
+			resp.Body.Close()
+			time.Sleep(time.Second * 1)
+			continue
+		}
+
+		resp.Body.Close()
+		break
+	}
+	t.RespWg.Done()
+}
+
+func (t *TestingJob) MakePutRequest(form string) {
+	for {
+		client := &http.Client{}
+		request, err := http.NewRequest("PUT", t.Url, strings.NewReader(form))
+		if err != nil {
+			log.Println(err)
+			time.Sleep(time.Second * 1)
+			continue
+		}
+		resp, err := client.Do(request)
+		if err != nil {
+			log.Println(err)
+			time.Sleep(time.Second * 1)
+			continue
+		}
+
+		_, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Println(err)
+			time.Sleep(time.Second * 1)
+			resp.Body.Close()
+			continue
+		}
+		resp.Body.Close()
+		break
+	}
+}
+
+func (t *TestingJob) StartTesting() string {
+	for i := 0; i <= t.ConnAmount; i++ {
+		t.SessionWg.Add(1)
+		t.RespWg.Add(1)
+		go t.MakeSession()
+	}
+
+	t.SessionWg.Wait()
+	t.MakePutRequest("value=jex")
+	startTime := time.Now()
+	t.RespWg.Wait()
+
+	endTime := time.Now()
+	spendTime := endTime.Sub(startTime)
+	return spendTime.String()
+}
+
 func main() {
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 
-	keyURL := flag.String("url", "http://127.0.0.1:2379/v2/keys/name", "The url stores key-value")
+	keyURL := flag.String("url", "http://192.168.79.101:4001/v2/keys/name", "The url stores key-value")
+	connAmount := flag.Int("c", 20000, "Testing connection amount")
 	flag.Parse()
-	connection := [6]int{1000, 5000, 10000, 20000, 40000}
-	latency := make([]int, len(connection))
-	for c := 0; c < len(connection); c++ {
-		log.Printf("Start to test %v connections to %v\n", connection[c], *keyURL)
-		latency[c] = test_LatencyOfPresistentConnection(connection[c], keyURL)
-		log.Printf("complete %v in %v ms\n", connection[c], latency)
-	}
+
+	// Jex
+	t := TestingJob{}
+	t.Url = *keyURL
+	t.ConnAmount = *connAmount
+	t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000, 32000}
+	log.Printf("Start to test %v connections to %v\n", *connAmount, *keyURL)
+	latency := t.StartTesting()
+	log.Printf("complete %v in %v \n", *connAmount, latency)
+
+	// Hawk
+	//connection := [6]int{1000, 5000, 10000, 20000, 40000}
+	//connection := [1]int{10000}
+	//latency := make([]int, len(connection))
+	//for c := 0; c < len(connection); c++ {
+	//	log.Printf("Start to test %v connections to %v\n", connection[c], *keyURL)
+	//	latency[c] = test_LatencyOfPresistentConnection(connection[c], keyURL)
+	//	log.Printf("complete %v in %v ms\n", connection[c], latency)
+	//}
 }
