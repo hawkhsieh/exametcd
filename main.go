@@ -6,7 +6,9 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -137,9 +139,11 @@ func (t *TestingJob) MakeSession() {
 }
 
 func (t *TestingJob) MakePutRequest(form string) {
+	r := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+	f := r.Int()
 	for {
 		client := &http.Client{}
-		request, err := http.NewRequest("PUT", t.Url, strings.NewReader(form))
+		request, err := http.NewRequest("PUT", t.Url+strconv.Itoa(f), strings.NewReader(form))
 		if err != nil {
 			log.Println(err)
 			time.Sleep(time.Second * 1)
@@ -184,18 +188,32 @@ func (t *TestingJob) StartTesting() string {
 func main() {
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 
-	keyURL := flag.String("url", "http://192.168.79.101:4001/v2/keys/name", "The url stores key-value")
-	connAmount := flag.Int("c", 20000, "Testing connection amount")
+	//keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/name", "The url stores key-value")
+	keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/", "The url stores key-value")
+	//connAmount := flag.Int("c", 20000, "Testing connection amount")
 	flag.Parse()
 
-	// Jex
+	// Put
 	t := TestingJob{}
 	t.Url = *keyURL
-	t.ConnAmount = *connAmount
-	t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000, 32000}
-	log.Printf("Start to test %v connections to %v\n", *connAmount, *keyURL)
-	latency := t.StartTesting()
-	log.Printf("complete %v in %v \n", *connAmount, latency)
+	startTime := time.Now()
+	for i := 0; i <= 50000; i++ {
+		go t.MakePutRequest("value=jex")
+	}
+	endTime := time.Now()
+	spendTime := endTime.Sub(startTime)
+	log.Println(spendTime)
+
+	// Jex
+	//t := TestingJob{}
+	//t.Url = *keyURL
+	//t.ConnAmount = *connAmount
+	//t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000}
+	//for i := range t.PeriodReport {
+	//	log.Printf("Start to test %v connections to %v\n", t.PeriodReport[i], *keyURL)
+	//	latency := t.StartTesting()
+	//	log.Printf("complete %v in %v \n", *connAmount, latency)
+	//}
 
 	// Hawk
 	//connection := [6]int{1000, 5000, 10000, 20000, 40000}
