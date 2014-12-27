@@ -105,8 +105,8 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 
 	keyURL := flag.String("url", "http://127.0.0.1:2379/v2/keys/name", "The url stores key-value")
-
-	connection := [6]int{1000, 2000, 3000, 5000, 10000}
+	flag.Parse()
+	connection := [6]int{1000, 5000, 10000, 20000, 40000}
 	latency := make([]int, len(connection))
 	for c := 0; c < len(connection); c++ {
 		log.Printf("Start to test %v connections to %v\n", connection[c], *keyURL)
