@@ -4,11 +4,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
-	"strconv"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -107,11 +107,12 @@ func test_LatencyOfPresistentConnection(testAmount int, keyURL *string) int {
 // -------------------------
 
 type TestingJob struct {
-	Url          string
-	ConnAmount   int
-	PeriodReport []int
-	SessionWg    sync.WaitGroup
-	RespWg       sync.WaitGroup
+	Url             string
+	ConnAmount      int
+	PeriodReport    []int
+	SessionWg       sync.WaitGroup
+	RespWg          sync.WaitGroup
+	ConnSuccessFlag chan bool
 }
 
 func (t *TestingJob) MakeSession() {
@@ -123,6 +124,7 @@ func (t *TestingJob) MakeSession() {
 			continue
 		}
 		t.SessionWg.Done()
+		t.ConnSuccessFlag <- true
 
 		_, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -139,11 +141,11 @@ func (t *TestingJob) MakeSession() {
 }
 
 func (t *TestingJob) MakePutRequest(form string) {
-	r := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
-	f := r.Int()
+	//r := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+	//f := r.Int()
 	for {
 		client := &http.Client{}
-		request, err := http.NewRequest("PUT", t.Url+strconv.Itoa(f), strings.NewReader(form))
+		request, err := http.NewRequest("PUT", t.Url, strings.NewReader(form))
 		if err != nil {
 			log.Println(err)
 			time.Sleep(time.Second * 1)
@@ -168,13 +170,33 @@ func (t *TestingJob) MakePutRequest(form string) {
 	}
 }
 
+func (t *TestingJob) Report() {
+	totalConn := 0
+	for {
+		select {
+		case <-t.ConnSuccessFlag:
+			totalConn += 1
+			for _, val := range t.PeriodReport {
+				if val == totalConn {
+					unixTime := time.Now().Unix()
+					var m0 runtime.MemStats
+					runtime.ReadMemStats(&m0)
+					fmt.Printf("%d, %d     NumGoroutine: %d    Memory: %.2f mb  \n", unixTime, totalConn, runtime.NumGoroutine(), float64(m0.Sys)/1024/1024)
+				}
+			}
+		}
+	}
+}
+
 func (t *TestingJob) StartTesting() string {
+	// Report connection numbers
+	go t.Report()
+
 	for i := 0; i <= t.ConnAmount; i++ {
 		t.SessionWg.Add(1)
 		t.RespWg.Add(1)
 		go t.MakeSession()
 	}
-
 	t.SessionWg.Wait()
 	t.MakePutRequest("value=jex")
 	startTime := time.Now()
@@ -186,34 +208,40 @@ func (t *TestingJob) StartTesting() string {
 }
 
 func main() {
+
+	//runtime.GOMAXPROCS(runtime.NumCPU())
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 
-	//keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/name", "The url stores key-value")
-	keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/", "The url stores key-value")
-	//connAmount := flag.Int("c", 20000, "Testing connection amount")
+	keyURL := flag.String("url", "http://192.168.79.102:4001/v2/keys/name", "The url stores key-value")
+
+	// keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/name", "The url stores key-value")
+	connAmount := flag.Int("c", 20000, "Testing connection amount")
 	flag.Parse()
 
 	// Put
-	t := TestingJob{}
-	t.Url = *keyURL
-	startTime := time.Now()
-	for i := 0; i <= 50000; i++ {
-		go t.MakePutRequest("value=jex")
-	}
-	endTime := time.Now()
-	spendTime := endTime.Sub(startTime)
-	log.Println(spendTime)
-
-	// Jex
 	//t := TestingJob{}
 	//t.Url = *keyURL
-	//t.ConnAmount = *connAmount
-	//t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000}
+	//startTime := time.Now()
+	//for i := 0; i <= 50000; i++ {
+	//	go t.MakePutRequest("value=jex")
+	//}
+	//endTime := time.Now()
+	//spendTime := endTime.Sub(startTime)
+	//log.Println(spendTime)
+
+	// Jex
+	t := TestingJob{}
+	t.Url = *keyURL
+	t.ConnAmount = *connAmount
+	t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000, 32000}
+	t.ConnSuccessFlag = make(chan bool)
 	//for i := range t.PeriodReport {
 	//	log.Printf("Start to test %v connections to %v\n", t.PeriodReport[i], *keyURL)
 	//	latency := t.StartTesting()
 	//	log.Printf("complete %v in %v \n", *connAmount, latency)
 	//}
+	latency := t.StartTesting()
+	fmt.Printf("complete %v connections in %v \n", *connAmount, latency)
 
 	// Hawk
 	//connection := [6]int{1000, 5000, 10000, 20000, 40000}
