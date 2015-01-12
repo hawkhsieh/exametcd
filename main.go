@@ -181,7 +181,7 @@ func (t *TestingJob) Report() {
 					unixTime := time.Now().Unix()
 					var m0 runtime.MemStats
 					runtime.ReadMemStats(&m0)
-					fmt.Printf("%d, %d     NumGoroutine: %d    Memory: %.2f mb  \n", unixTime, totalConn, runtime.NumGoroutine(), float64(m0.Sys)/1024/1024)
+					fmt.Printf("time: %d    totalCount: %d     NumGoroutine: %d    Memory: %.2f mb  \n", unixTime, totalConn, runtime.NumGoroutine(), float64(m0.Sys)/1024/1024)
 				}
 			}
 		}
@@ -212,10 +212,10 @@ func main() {
 	//runtime.GOMAXPROCS(runtime.NumCPU())
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 
-	keyURL := flag.String("url", "http://192.168.79.102:4001/v2/keys/name", "The url stores key-value")
+	keyURL := flag.String("url", "http://54.148.22.36:4001/v2/keys/name", "The url stores key-value")
 
 	// keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/name", "The url stores key-value")
-	connAmount := flag.Int("c", 20000, "Testing connection amount")
+	connAmount := flag.Int("c", 2000, "Testing connection amount")
 	flag.Parse()
 
 	// Put
