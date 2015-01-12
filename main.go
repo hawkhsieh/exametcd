@@ -119,7 +119,7 @@ func (t *TestingJob) MakeSession() {
 	for {
 		resp, err := http.Get(t.Url + "?wait=true")
 		if err != nil {
-			//		log.Println(err)
+			log.Println(err.Error())
 			time.Sleep(time.Second * 1)
 			continue
 		}
@@ -127,14 +127,12 @@ func (t *TestingJob) MakeSession() {
 		t.ConnSuccessFlag <- true
 
 		_, err = ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
-			log.Println(err)
-			resp.Body.Close()
+			log.Println(err.Error())
 			time.Sleep(time.Second * 1)
 			continue
 		}
-
-		resp.Body.Close()
 		break
 	}
 	t.RespWg.Done()
@@ -147,25 +145,24 @@ func (t *TestingJob) MakePutRequest(form string) {
 		client := &http.Client{}
 		request, err := http.NewRequest("PUT", t.Url, strings.NewReader(form))
 		if err != nil {
-			log.Println(err)
+			log.Println(err.Error())
 			time.Sleep(time.Second * 1)
 			continue
 		}
 		resp, err := client.Do(request)
 		if err != nil {
-			log.Println(err)
+			log.Println(err.Error())
 			time.Sleep(time.Second * 1)
 			continue
 		}
 
 		_, err = ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
-			log.Println(err)
+			log.Println(err.Error())
 			time.Sleep(time.Second * 1)
-			resp.Body.Close()
 			continue
 		}
-		resp.Body.Close()
 		break
 	}
 }
@@ -174,6 +171,8 @@ func (t *TestingJob) Report() {
 	totalConn := 0
 	for {
 		select {
+		case <-time.After(time.Second * 1):
+			fmt.Println(totalConn)
 		case <-t.ConnSuccessFlag:
 			totalConn += 1
 			for _, val := range t.PeriodReport {
@@ -198,7 +197,7 @@ func (t *TestingJob) StartTesting() string {
 		go t.MakeSession()
 	}
 	t.SessionWg.Wait()
-	t.MakePutRequest("value=jex")
+	//t.MakePutRequest("value=jex")
 	startTime := time.Now()
 	t.RespWg.Wait()
 
@@ -215,7 +214,7 @@ func main() {
 	keyURL := flag.String("url", "http://54.148.22.36:4001/v2/keys/name", "The url stores key-value")
 
 	// keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/name", "The url stores key-value")
-	connAmount := flag.Int("c", 2000, "Testing connection amount")
+	connAmount := flag.Int("c", 20000, "Testing connection amount")
 	flag.Parse()
 
 	// Put
@@ -233,7 +232,7 @@ func main() {
 	t := TestingJob{}
 	t.Url = *keyURL
 	t.ConnAmount = *connAmount
-	t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000, 32000}
+	t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000, 20000, 32000, 64000}
 	t.ConnSuccessFlag = make(chan bool)
 	//for i := range t.PeriodReport {
 	//	log.Printf("Start to test %v connections to %v\n", t.PeriodReport[i], *keyURL)
