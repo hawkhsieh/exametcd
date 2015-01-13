@@ -36,12 +36,13 @@ func (t *TestingJob) MakeSession() {
 		t.ConnSuccessFlag <- true
 
 		_, err = ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
 		if err != nil {
 			log.Println(err.Error())
+			resp.Body.Close()
 			time.Sleep(time.Second * 1)
 			continue
 		}
+		resp.Body.Close()
 		break
 	}
 	t.RespWg.Done()
@@ -64,12 +65,13 @@ func (t *TestingJob) MakePutRequest(form string) {
 		}
 
 		_, err = ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
 		if err != nil {
 			log.Println(err.Error())
+			resp.Body.Close()
 			time.Sleep(time.Second * 1)
 			continue
 		}
+		resp.Body.Close()
 		break
 	}
 }
@@ -111,8 +113,8 @@ func (t *TestingJob) WaitTesting() string {
 		go t.MakeSession()
 	}
 	t.SessionWg.Wait()
-	//t.MakePutRequest("value=jex")
 	startTime := time.Now()
+	//t.MakePutRequest("value=jex")
 	t.RespWg.Wait()
 
 	endTime := time.Now()
