@@ -114,7 +114,7 @@ func (t *TestingJob) WaitTesting() string {
 	}
 	t.SessionWg.Wait()
 	startTime := time.Now()
-	t.MakePutRequest("value=jex")
+	//t.MakePutRequest("value=jex")
 	t.RespWg.Wait()
 
 	endTime := time.Now()
