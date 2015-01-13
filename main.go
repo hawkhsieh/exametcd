@@ -28,7 +28,7 @@ func (t *TestingJob) MakeSession() {
 	for {
 		resp, err := http.Get(t.Url + "?wait=true")
 		if err != nil {
-			log.Println(err.Error())
+			//log.Println(err.Error())
 			time.Sleep(time.Second * 1)
 			continue
 		}
@@ -37,7 +37,7 @@ func (t *TestingJob) MakeSession() {
 
 		_, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Println(err.Error())
+			//log.Println(err.Error())
 			resp.Body.Close()
 			time.Sleep(time.Second * 1)
 			continue
@@ -81,7 +81,7 @@ func (t *TestingJob) Report() {
 	for {
 		select {
 		case <-time.After(time.Second * 1):
-			fmt.Println(totalConn)
+			//fmt.Println(totalConn)
 		case <-t.ConnSuccessFlag:
 			totalConn += 1
 			//for _, val := range t.PeriodReport {
@@ -114,7 +114,7 @@ func (t *TestingJob) WaitTesting() string {
 	}
 	t.SessionWg.Wait()
 	startTime := time.Now()
-	//t.MakePutRequest("value=jex")
+	t.MakePutRequest("value=jex")
 	t.RespWg.Wait()
 
 	endTime := time.Now()
