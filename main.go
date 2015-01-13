@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"runtime"
 	"strings"
@@ -139,8 +140,6 @@ func (t *TestingJob) MakeSession() {
 }
 
 func (t *TestingJob) MakePutRequest(form string) {
-	//r := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
-	//f := r.Int()
 	for {
 		client := &http.Client{}
 		request, err := http.NewRequest("PUT", t.Url, strings.NewReader(form))
@@ -175,19 +174,26 @@ func (t *TestingJob) Report() {
 			fmt.Println(totalConn)
 		case <-t.ConnSuccessFlag:
 			totalConn += 1
-			for _, val := range t.PeriodReport {
-				if val == totalConn {
-					unixTime := time.Now().Unix()
-					var m0 runtime.MemStats
-					runtime.ReadMemStats(&m0)
-					fmt.Printf("time: %d    totalCount: %d     NumGoroutine: %d    Memory: %.2f mb  \n", unixTime, totalConn, runtime.NumGoroutine(), float64(m0.Sys)/1024/1024)
-				}
+			//for _, val := range t.PeriodReport {
+			//	if val == totalConn {
+			//		unixTime := time.Now().Unix()
+			//		var m0 runtime.MemStats
+			//		runtime.ReadMemStats(&m0)
+			//		fmt.Printf("time: %d    totalCount: %d     NumGoroutine: %d    Memory: %.2f mb  \n", unixTime, totalConn, runtime.NumGoroutine(), float64(m0.Sys)/1024/1024)
+			//	}
+			//}
+			if totalConn%1000 == 0 {
+				unixTime := time.Now().Unix()
+				var m0 runtime.MemStats
+				runtime.ReadMemStats(&m0)
+				//fmt.Printf("time: %d    totalCount: %d     NumGoroutine: %d    Memory: %.2f mb  \n", unixTime, totalConn, runtime.NumGoroutine(), float64(m0.Sys)/1024/1024)
+				fmt.Printf("%d,%d,%d,%.2f mb\n", unixTime, totalConn, runtime.NumGoroutine(), float64(m0.Sys)/1024/1024)
 			}
 		}
 	}
 }
 
-func (t *TestingJob) StartTesting() string {
+func (t *TestingJob) WaitTesting() string {
 	// Report connection numbers
 	go t.Report()
 
@@ -206,40 +212,48 @@ func (t *TestingJob) StartTesting() string {
 	return spendTime.String()
 }
 
+func (t *TestingJob) RandomKeyTesting() string {
+	startTime := time.Now()
+	for i := 0; i < t.ConnAmount; i++ {
+		r := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+		f := r.Int()
+		t.Url = fmt.Sprintf("http://54.148.22.36:4001/v2/keys/%d", f)
+		go t.MakePutRequest(fmt.Sprintf("value=%d", f))
+	}
+	endTime := time.Now()
+	spendTime := endTime.Sub(startTime)
+	return spendTime.String()
+}
+
 func main() {
 
 	//runtime.GOMAXPROCS(runtime.NumCPU())
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 
-	keyURL := flag.String("url", "http://54.148.22.36:4001/v2/keys/name", "The url stores key-value")
+	//keyURL := flag.String("url", "http://54.148.22.36:4001/v2/keys/name", "The url stores key-value")
 
-	// keyURL := flag.String("url", "http://127.0.0.1:4001/v2/keys/name", "The url stores key-value")
-	connAmount := flag.Int("c", 20000, "Testing connection amount")
+	connAmount := flag.Int("c", 2000, "Testing connection amount")
+	testType := flag.Int("t", 1, "1: Wait the same key, 2: Put random key")
 	flag.Parse()
 
 	// Put
 	//t := TestingJob{}
 	//t.Url = *keyURL
-	//startTime := time.Now()
-	//for i := 0; i <= 50000; i++ {
-	//	go t.MakePutRequest("value=jex")
-	//}
-	//endTime := time.Now()
-	//spendTime := endTime.Sub(startTime)
-	//log.Println(spendTime)
 
 	// Jex
+	var latency string
 	t := TestingJob{}
-	t.Url = *keyURL
 	t.ConnAmount = *connAmount
-	t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000, 20000, 32000, 64000}
+	t.PeriodReport = []int{1000, 2000, 4000, 8000, 16000, 20000, 32000, 40000, 45000, 50000, 55000, 60000, 64000}
 	t.ConnSuccessFlag = make(chan bool)
-	//for i := range t.PeriodReport {
-	//	log.Printf("Start to test %v connections to %v\n", t.PeriodReport[i], *keyURL)
-	//	latency := t.StartTesting()
-	//	log.Printf("complete %v in %v \n", *connAmount, latency)
-	//}
-	latency := t.StartTesting()
+
+	switch *testType {
+	case 1:
+		t.Url = "http://54.148.22.36:4001/v2/keys/name"
+		latency = t.WaitTesting()
+	case 2:
+		latency = t.RandomKeyTesting()
+	}
 	fmt.Printf("complete %v connections in %v \n", *connAmount, latency)
 
 	// Hawk
